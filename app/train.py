@@ -24,6 +24,15 @@ class ArivalTime(NamedTuple):
     walk_arival: datetime
     dash_arival: datetime
 
+#列車情報の定義
+class TrainInfo(NamedTuple):
+    train_time: str
+    train_type: str
+    train_destination: str
+    train_color: str
+    success_walk: bool
+    success_dash: bool
+
 #個人設定の読み込み
 def load_settings():
     load_dotenv()
@@ -69,5 +78,14 @@ def arival_time():
         dash_arival = dash_arival
     )
 
+#列車基本情報の取得
+def train_base_info():
+    master = {}
+    train_master_path = "data/train_data/train_master.csv"
+    with open(train_master_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            master[row['id']] = row
+    return master
 
 
