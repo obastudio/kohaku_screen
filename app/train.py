@@ -57,7 +57,7 @@ def get_time():
    weekend_holiday = weekend or japanese_holiday
    
    if weekend_holiday:
-       today_csv = "data/train_data/scedule_weekend.csv"
+       today_csv = "data/train_data/schedule_weekend.csv"
    else:
        today_csv = "data/train_data/schedule_weekday.csv"
 
@@ -88,4 +88,57 @@ def train_base_info():
             master[row['id']] = row
     return master
 
+# 乗車可能列車情報の取得
+def upcoming_train():
+    nowtime = get_time()
+    arivaltime = arival_time()
+    master = train_base_info()
+    upcoming = []
+    
+    with open(nowtime.today_csv, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            dep_dt = nowtime.nowtime.replace(
+                hour = int(row['hour']), 
+                minute = int(row['min']),
+                second = 0,
+                microsecond = 0
+            )
+            #ダッシュ到着時刻より前の列車は除外
+            if dep_dt < arivaltime.dash_arival:
+                continue
+            
+            m_info = master.get(row['master_id'])
+            if not m_info:
+                continue
+            
+            upcoming.append(
+                TrainInfo(
+                    train_time = dep_dt.strftime('%H:%M'),
+                    train_type = m_info['type'],
+                    train_destination = m_info['dest'],
+                    train_color = m_info['color'],
+                    success_walk = dep_dt >= arivaltime.walk_arival,
+                    success_dash = dep_dt >= arivaltime.dash_arival
+                )
+            )
+            if len(upcoming) >= 3:
+                break
 
+
+    return upcoming
+
+# エントリーポイント
+if __name__ == "__main__":
+    # 1. 電車情報を取得
+    trains = upcoming_train()
+    
+    # 2. 結果を表示
+    print("--- 次に乗れる電車（直近3本） ---")
+    if not trains:
+        print("現在、乗れる電車はありません。")
+    else:
+        for i, train in enumerate(trains, 1):
+            # success_walkなどの真偽値も確認できるように
+            status = "徒歩OK" if train.success_walk else "ダッシュ推奨"
+            print(f"{i}: {train.train_time}発 {train.train_type}({train.train_destination}行) [{status}]")
