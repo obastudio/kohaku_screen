@@ -141,4 +141,5 @@ if __name__ == "__main__":
         for i, train in enumerate(trains, 1):
             # success_walkなどの真偽値も確認できるように
             status = "徒歩OK" if train.success_walk else "ダッシュ推奨"
-            print(f"{i}: {train.train_time}発 {train.train_type}({train.train_destination}行) [{status}]")
+            print(f"{i}: {train.train_time}発 {train.train_type}({train.train_destination}行) [{status}]") 
+   
