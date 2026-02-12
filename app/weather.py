@@ -80,52 +80,103 @@ def get_safe_value(data_dict, key, default=None):
 
     return default
 
+
+#最新のアメダスデータの時刻取得(datetime.datetime型で出力)
+def amedas_now_time():
+    url = "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        raw_str = response.text.strip()
+        #datetime型に変換
+        dt = datetime.strptime(raw_str, '%Y-%m-%dT%H:%M:%S%z')
+        return dt
+
+    except Exception as e:
+        print(f"最新時刻の取得に失敗: {e}")
+        return None
+
+
 #アメダスのデータ取得
-def get_amedas_data(found_time:int):
+def get_amedas_data(found_time:datetime):
     load_dotenv()
     amedas_number = os.getenv("AMEDAS_NUMBER")
-    time = str(found_time)
-    dt = datetime.strptime(time, "%Y%m%d%H%M%S")
-    url = f"https://www.jma.go.jp/bosai/amedas/data/map/{time}.json"
+    url_time = found_time.strftime("%Y%m%d%H%M00")
+    url = f"https://www.jma.go.jp/bosai/amedas/data/map/{url_time}.json"
     
-    response = requests.get(url)
-    response.raise_for_status()
-    data = response.json()
-    
-    select_data = data.get(amedas_number)
-    temp = get_safe_value(select_data, "temp")
-    humidity = get_safe_value(select_data, "humidity")
-    wind_direction = get_safe_value(select_data, "wind")
-    wind = get_safe_value(select_data, "wind")
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
 
-    if None in [temp, humidity, wind_direction, wind]:
+        select_data = data.get(amedas_number)
+        temp = get_safe_value(select_data, "temp")
+        humidity = get_safe_value(select_data, "humidity")
+        wind_direction = get_safe_value(select_data, "windDirection")
+        wind = get_safe_value(select_data, "wind")
+
+        if None in [temp, humidity, wind_direction, wind]:
+            return None
+
+        return Amedas_data(
+            time = found_time,
+            temp = temp,
+            humidity = humidity,
+            wind_direction = wind_direction,
+            wind = wind
+        )
+    
+    except Exception as e:
+        print(f"({url_time})に対応するURLが存在しません: {e}")
         return None
-    
-    return Amedas_data(
-        time = dt,
-        temp = temp,
-        humidity = humidity,
-        wind_direction = wind_direction,
-        wind = wind
-    )
 
+#アメダスの過去12時間分のデータ取得
 def collect_12th_amedas():
+    base_time = amedas_now_time()
+    if not base_time:
+        print("最新情報の時刻データを取得できません")
+        return []
+
     amedas_list = []
-    
-    T = "20260212230000"
-    base_time = datetime.strptime(T, "%Y%m%d%H%M%S")
 
     for i in range(12):
         target_time = base_time - timedelta(hours=i)
+        data = get_amedas_data(target_time)
+        #Noneでなければデータに追加
+        if data:
+            amedas_list.append(data)
+        #0.5秒処理を止める、apiのお作法
+        time.sleep(0.5)
 
-        time_str = target_time.strftime("%Y%m%d%H0000")
+    return amedas_list
 
-        data = get_amedas_data(time_str)
+
+#アメダスの過去12時間分のデータ取得
+#現在の10分刻みの最新データ＋正時のデータ
+def collect_12th_amedas00():
+    base_time = amedas_now_time()
+    if not base_time:
+        print("最新情報の時刻データを取得できません")
+        return []
+
+    amedas_list = []
+
+    latest_data = get_amedas_data(base_time)
+    if latest_data:
+        amedas_list.append(latest_data)
+
+    base_hour = base_time.replace(minute=0, second=0, microsecond=0)
+
+    for i in range(13):
+        target_time = base_hour - timedelta(hours=i)
+        data = get_amedas_data(target_time)
+        #現在時刻が正時のデータなら重複して取得しない
+        if target_time == base_time:
+            continue
 
         #Noneでなければデータに追加
         if data:
             amedas_list.append(data)
-
         #0.5秒処理を止める、apiのお作法
         time.sleep(0.5)
 
@@ -135,11 +186,11 @@ def collect_12th_amedas():
 
 def apparent_temp(temp:float, humidity:float, wind_speed:float):
     #Steadmanの式による体感温度を計算する
-    # 1. 飽和水蒸気圧 E (hPa) を計算（テッテンスの式）
+    # 飽和水蒸気圧 E (hPa) を計算（テッテンスの式）
     e_sat = 6.1078 * math.pow(10, (7.5 * temp) / (temp + 237.3))
-    # 2. 現在の水蒸気圧 e (hPa) を計算
+    # 現在の水蒸気圧 e (hPa) を計算
     e_abs = e_sat * (humidity / 100)
-    # 3. 体感温度 AT を計算
+    # 体感温度 AT を計算
     # AT = T + 0.33 * e - 0.70 * v - 4.00
     at = temp + (0.33 * e_abs) - (0.70 * wind_speed) - 4.00
 
@@ -156,14 +207,16 @@ if __name__ == "__main__":
     data = response.json()
     raw_data = data[0]
     
-    #print(get_amedas_data(20260212141000))
+    #print(get_amedas_data(amedas_now_time()))
     
     #print(get_weather_forcast())
 
-    amd = get_amedas_data(20260212141000)
+    #amd = get_amedas_data(20260212141000)
     #print(apparent_temp(amd.temp, amd.humidity, amd.wind))
 
-    print(collect_12th_amedas())
+    #print(collect_12th_amedas())
 
+    #Sprint(collect_12th_amedas00())
 
+    #print(amedas_now_time())
 
