@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from typing import NamedTuple, List
-from datetime import datetime
+import time
+
 
 #クラスの定義
 class WeatherPoint(NamedTuple):
@@ -17,40 +18,13 @@ class WeatherForecast(NamedTuple):
     pops: List[WeatherPoint]
     temps: List[WeatherPoint]
 
-"""
-def get_weather_json():
-    load_dotenv()
-    meso_area_code = os.getenv("MESO_AREA_CODE")
-    local_area_code = os.getenv("LOCAL_AREA_CODE")
-    city_code = os.getenv("CITY_CODE")
-    url = f"https://www.jma.go.jp/bosai/forecast/data/forecast/{meso_area_code}.json"
-    
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        #今日、明日、明後日のデータは最初のカラムに入っている
-        latest_forecast = data[0]
-        local_data = {}
-        for ts in latest_forecast['timeSeries']:
-            time_labels = ts['timeDefines']
-            for area_data in ts['areas']:
-                # エリアコードが一致するか確認
-                if area_data['area']['code'] in [local_area_code, city_code]:
-                    # 辞書の中身を更新(天気、降水確率、気温などを統合)
-                    local_data.update(area_data)
-                    # どの値がどの時刻に対応するか分かるように名前を付けて保存
-                    if 'pops' in area_data:
-                        local_data['pop_times'] = time_labels
-                    if 'temps' in area_data:
-                        local_data['temp_times'] = time_labels
-                    if 'weathers' in area_data:
-                        local_data['weather_times'] = time_labels
-        return local_data
-    except requests.exceptions.RequestException as e:
-        print(f"データの取得に失敗しました: {e}")
-        return None
-"""
+class Amedas_data(NamedTuple):
+    time: datetime
+    temp: float
+    humidity: float
+    wind_direction: int
+    wind: float
+
 
 def get_weather_forcast():
     load_dotenv()
@@ -95,9 +69,71 @@ def get_weather_forcast():
         pops=pop_list,
         temps=temp_list
     )
+
+#アメダスデータ取得用欠損地ヘルパー関数    
+# キー（tempなど）が不在、もしくはその中身がNoneならNoneを返す
+def get_safe_value(data_dict, key, default=None):
+
+    values = data_dict.get(key)
+    if values and values[0] is not None:
+        return values[0]
+
+    return default
+
+#アメダスのデータ取得
+def get_amedas_data(found_time:int):
+    load_dotenv()
+    amedas_number = os.getenv("AMEDAS_NUMBER")
+    time = str(found_time)
+    dt = datetime.strptime(time, "%Y%m%d%H%M%S")
+    url = f"https://www.jma.go.jp/bosai/amedas/data/map/{time}.json"
+    
+    response = requests.get(url)
+    response.raise_for_status()
+    data = response.json()
+    
+    select_data = data.get(amedas_number)
+    temp = get_safe_value(select_data, "temp")
+    humidity = get_safe_value(select_data, "humidity")
+    wind_direction = get_safe_value(select_data, "wind")
+    wind = get_safe_value(select_data, "wind")
+
+    if None in [temp, humidity, wind_direction, wind]:
+        return None
+    
+    return Amedas_data(
+        time = dt,
+        temp = temp,
+        humidity = humidity,
+        wind_direction = wind_direction,
+        wind = wind
+    )
+
+def collect_12th_amedas():
+    amedas_list = []
+    
+    T = "20260212230000"
+    base_time = datetime.strptime(T, "%Y%m%d%H%M%S")
+
+    for i in range(12):
+        target_time = base_time - timedelta(hours=i)
+
+        time_str = target_time.strftime("%Y%m%d%H0000")
+
+        data = get_amedas_data(time_str)
+
+        #Noneでなければデータに追加
+        if data:
+            amedas_list.append(data)
+
+        #0.5秒処理を止める、apiのお作法
+        time.sleep(0.5)
+
+    return amedas_list
+
     
 
-def apparent_temp(temp:float, humidity:float, wind_speed:float) -> float:
+def apparent_temp(temp:float, humidity:float, wind_speed:float):
     #Steadmanの式による体感温度を計算する
     # 1. 飽和水蒸気圧 E (hPa) を計算（テッテンスの式）
     e_sat = 6.1078 * math.pow(10, (7.5 * temp) / (temp + 237.3))
@@ -118,21 +154,16 @@ if __name__ == "__main__":
     response = requests.get(url)
     response.raise_for_status()
     data = response.json()
-    #print(data)
-    select_data = data[0]
-
-    #print(select_data)
-
-    #choise = get_weather_json()
-
-    local_data = {}
-    for ts in select_data['timeSeries']:
-        time_labels = ts['timeDefines']
-        #print(time_labels)
+    raw_data = data[0]
     
-    print(get_weather_forcast())
+    #print(get_amedas_data(20260212141000))
+    
+    #print(get_weather_forcast())
 
-    #local_area_code = os.getenv("LOCAL_AREA_CODE")
-    #city_code = os.getenv("CITY_CODE")
+    amd = get_amedas_data(20260212141000)
+    #print(apparent_temp(amd.temp, amd.humidity, amd.wind))
 
-    #print(local_area_code, city_code)
+    print(collect_12th_amedas())
+
+
+
