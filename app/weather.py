@@ -184,7 +184,11 @@ def collect_12th_amedas00():
 
     
 
-def apparent_temp(temp:float, humidity:float, wind_speed:float):
+def apparent_temp(amedas):
+    temp = amedas.temp
+    humidity = amedas.humidity
+    wind_speed = amedas.wind
+
     #Steadmanの式による体感温度を計算する
     # 飽和水蒸気圧 E (hPa) を計算（テッテンスの式）
     e_sat = 6.1078 * math.pow(10, (7.5 * temp) / (temp + 237.3))
@@ -196,8 +200,18 @@ def apparent_temp(temp:float, humidity:float, wind_speed:float):
 
     return round(at, 1)
 
+def list_apparent_temp(amedas_list):
+    apparent_temp_list = []
+    for amedas in amedas_list:
+     
+        at =  apparent_temp(amedas)       
 
-
+        apparent_temp_list.append({
+            "time" : amedas.time,
+            "real_temp": amedas.temp,
+            "apparent_temp": at
+        }) 
+    return apparent_temp_list
 
 # --- 動作確認 ---
 if __name__ == "__main__":
@@ -209,7 +223,7 @@ if __name__ == "__main__":
     
     #print(get_amedas_data(amedas_now_time()))
     
-    #print(get_weather_forcast())
+    print(get_weather_forcast())
 
     #amd = get_amedas_data(20260212141000)
     #print(apparent_temp(amd.temp, amd.humidity, amd.wind))
@@ -219,4 +233,13 @@ if __name__ == "__main__":
     #Sprint(collect_12th_amedas00())
 
     #print(amedas_now_time())
+
+    #print((list_apparent_temp(collect_12th_amedas00())))
+
+    #now_amd = get_amedas_data(amedas_now_time())
+
+    # = now_amd.temp
+   
+
+    #print(apparent_temp(now_amd))
 
