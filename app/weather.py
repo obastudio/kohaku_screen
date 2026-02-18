@@ -24,8 +24,10 @@ class Amedas_data(NamedTuple):
     time: datetime
     temp: float
     humidity: float
+    precipitation1h: float
     wind_direction: int
     wind: float
+
 
 class UmbrellaResult(NamedTuple):
     level_6h: int     # 0:なし, 1:折り畳み, 2:必須
@@ -202,6 +204,7 @@ def get_amedas_data(found_time:datetime):
         select_data = data.get(amedas_number)
         temp = get_safe_value(select_data, "temp")
         humidity = get_safe_value(select_data, "humidity")
+        precipitation1h = get_safe_value(select_data, "precipitation1h")
         wind_direction = get_safe_value(select_data, "windDirection")
         wind = get_safe_value(select_data, "wind")
 
@@ -212,6 +215,7 @@ def get_amedas_data(found_time:datetime):
             time = found_time,
             temp = temp,
             humidity = humidity,
+            precipitation1h = precipitation1h,
             wind_direction = wind_direction,
             wind = wind
         )
@@ -272,6 +276,7 @@ def collect_12th_amedas00():
 
     return amedas_list
 
+"""
 #アメダスと予報の気温データを合体
 def merge_temps(amedas_list, forecast_list):
     total_series = []
@@ -295,6 +300,9 @@ def merge_temps(amedas_list, forecast_list):
         ))
 
     return total_series
+
+"""
+
 
 #体感温度の計算式
 def apparent_temp(amedas):
@@ -367,6 +375,15 @@ def judge_umbrella_necessity(fine_pops: List[WeatherPoint]) -> UmbrellaResult:
         max_pop_12h=pop12
     )
 
+def get_weather_emoji(code):
+    # 気象庁コード(1xx:晴れ, 2xx:曇り, 3xx:雨, 4xx:雪)
+    code = str(code)
+    if code.startswith('1'): return "☀️"
+    if code.startswith('2'): return "☁️"
+    if code.startswith('3'): return "☔"
+    if code.startswith('4'): return "❄️"
+    return "❓"
+
 # --- 動作確認 ---
 if __name__ == "__main__":
     url = "https://www.jma.go.jp/bosai/forecast/data/forecast/420000.json"
@@ -382,15 +399,19 @@ if __name__ == "__main__":
     #amd = get_amedas_data(20260212141000)
     #print(apparent_temp(amd.temp, amd.humidity, amd.wind))
 
-    #print(collect_12th_amedas())
+    #print(collect_12th_amedas00())
+    wind_directions = [d.time for d in reversed(collect_12th_amedas00())]
 
-    #Sprint(collect_12th_amedas00())
+    print(wind_directions)
+
+
 
     #print(amedas_now_time())
 
     #print((list_apparent_temp(collect_12th_amedas00())))
 
     #now_amd = get_amedas_data(amedas_now_time())
+    #print(now_amd)
 
     # = now_amd.temp
    
@@ -404,6 +425,7 @@ if __name__ == "__main__":
 
     #forecast_pops = get_weather_forcast().pops
     #intr_pops = interpolate_forecast(forecast_pops, "pops")
+    #print(intr_pops)
     #print(judge_umbrella_necessity(intr_pops).level_6h)
 
     #amedas = collect_12th_amedas00()

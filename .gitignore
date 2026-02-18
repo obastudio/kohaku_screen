@@ -19,3 +19,9 @@ Thumbs.db
 
 # エディタ関連
 .vscode/
+
+#アイコン関連
+/icons/
+
+#描画関連
+/img/
